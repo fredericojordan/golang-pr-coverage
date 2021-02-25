@@ -29,6 +29,7 @@ runs:
         go tool cover -func=c.out | tee /tmp/cov_head | tail -n1 | sed 's/%//g' | awk '{printf "cov_head=%s", $3}' >> $GITHUB_ENV
 
     - name: Display coverage diff
+      id: cov-diff
       run: |
         diff /tmp/cov_base /tmp/cov_head | tee /tmp/diff
         content=$(cat /tmp/diff)
