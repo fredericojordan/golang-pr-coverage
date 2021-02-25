@@ -15,6 +15,7 @@ runs:
   using: "composite"
   steps:
     - name: Calculate base coverage
+      shell: bash
       run: |
         git checkout ${{ github.base_ref }}
         cd ${{ inputs.working-directory }}
@@ -22,6 +23,7 @@ runs:
         go tool cover -func=c.out | tee /tmp/cov_base | tail -n1 | sed 's/%//g' | awk '{printf "cov_base=%s", $3}' >> $GITHUB_ENV
 
     - name: Calculate HEAD coverage
+      shell: bash
       run: |
         git checkout ${{ github.head_ref }}
         cd ${{ inputs.working-directory }}
@@ -30,6 +32,7 @@ runs:
 
     - name: Display coverage diff
       id: cov-diff
+      shell: bash
       run: |
         diff /tmp/cov_base /tmp/cov_head | tee /tmp/diff
         content=$(cat /tmp/diff)
@@ -39,4 +42,5 @@ runs:
         echo "::set-output name=cov-diff::$content"
 
     - name: Check if coverage has decreased
+      shell: bash
       run: awk 'BEGIN{ if (${{ env.cov_base }} > ${{ env.cov_head }}) {print "::error::Coverage has decreased from ${{ env.cov_base }}% to ${{ env.cov_head }}%"; exit 1;} else {print "OK! Total coverage is ${{ env.cov_head }}%"}}'
