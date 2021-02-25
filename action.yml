@@ -4,10 +4,7 @@ description: 'Check your Pull Request testing coverage'
 inputs:
   working-directory:
     description: 'Directory in which to run tests'
-    default: './'
-  go-version:
-    description: 'Golang version'
-    default: 1.15
+    default: '.'
 
 outputs:
   cov-diff:
@@ -17,56 +14,28 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Set up Golang
-      uses: actions/setup-go@v2
-      with:
-        go-version: ${{ inputs.go-version }}
-
-    - name: Checkout base ref
-      uses: actions/checkout@v2
-      with:
-        ref: ${{ github.base_ref }}
-
     - name: Calculate base coverage
-      run: make test && go tool cover -func=c.out | tail -n1 | sed 's/%//g' | awk '{printf "cov_base=%s", $3}' >> $GITHUB_ENV
-      working-directory: ${{ inputs.working-directory }}
-
-    - name: Display base coverage
-      run: go tool cover -func=c.out | tee /tmp/cov_base
-      working-directory: ${{ inputs.working-directory }}
-
-    - name: Checkout HEAD
-      uses: actions/checkout@v2
+      run: |
+        git checkout ${{ github.base_ref }}
+        cd ${{ inputs.working-directory }}
+        make test > /dev/null/
+        go tool cover -func=c.out | tee /tmp/cov_base | tail -n1 | sed 's/%//g' | awk '{printf "cov_base=%s", $3}' >> $GITHUB_ENV
 
     - name: Calculate HEAD coverage
-      run: make test && go tool cover -func=c.out | tail -n1 | sed 's/%//g' | awk '{printf "cov_head=%s", $3}' >> $GITHUB_ENV
-      working-directory: ${{ inputs.working-directory }}
-
-    - name: Display HEAD coverage
-      run: go tool cover -func=c.out | tee /tmp/cov_head
-      working-directory: ${{ inputs.working-directory }}
+      run: |
+        git checkout ${{ github.head_ref }}
+        cd ${{ inputs.working-directory }}
+        make test > /dev/null/
+        go tool cover -func=c.out | tee /tmp/cov_head | tail -n1 | sed 's/%//g' | awk '{printf "cov_head=%s", $3}' >> $GITHUB_ENV
 
     - name: Display coverage diff
-      run: diff /tmp/cov_base /tmp/cov_head | tee /tmp/diff
-
-    - name: Set diff output to variable
-      id: cov-diff
       run: |
+        diff /tmp/cov_base /tmp/cov_head | tee /tmp/diff
         content=$(cat /tmp/diff)
         content="${content//'%'/'%25'}"
         content="${content//$'\n'/'%0A'}"
         content="${content//$'\r'/'%0D'}"
         echo "::set-output name=cov-diff::$content"
-
-    - uses: marocchino/sticky-pull-request-comment@v2
-      if: steps.cov-diff.outputs.cov-diff != ''
-      with:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        message: |
-          Coverage diff of ${{ github.event.pull_request.head.sha }}.
-          ```diff
-          ${{ steps.cov-diff.outputs.cov-diff }}
-          ```
 
     - name: Check if coverage has decreased
       run: awk 'BEGIN{ if (${{ env.cov_base }} > ${{ env.cov_head }}) {print "::error::Coverage has decreased from ${{ env.cov_base }}% to ${{ env.cov_head }}%"; exit 1;} else {print "OK! Total coverage is ${{ env.cov_head }}%"}}'
